@@ -1,0 +1,13 @@
+{
+  "extends": "@repo/typescript-config/base.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": ".",
+    "lib": ["ES2022"],
+    "types": ["node"],
+    "declaration": false,
+    "declarationMap": false
+  },
+  "include": ["main.ts"],
+  "exclude": ["node_modules", "dist"]
+}
