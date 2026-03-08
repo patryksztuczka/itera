@@ -5,17 +5,20 @@
   "description": "",
   "main": "dist/main.js",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "check-types": "tsc --noEmit",
     "dev": "pnpm run build && electron .",
+    "build": "tsc -p tsconfig.json",
+    "lint": "eslint . --max-warnings 0",
+    "check-types": "tsc --noEmit",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "@repo/eslint-config": "workspace:*",
     "@repo/typescript-config": "workspace:*",
     "@types/node": "^24.10.1",
+    "eslint": "^9.39.1",
     "electron": "^40.8.0",
     "typescript": "5.9.2"
   }
