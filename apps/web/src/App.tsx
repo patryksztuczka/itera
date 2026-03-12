@@ -1,296 +1,255 @@
-import { useEffect, useMemo, useState } from 'react';
-import type { FormEvent } from 'react';
-import { anyApi } from 'convex/server';
-import { useMutation, useQuery } from 'convex/react';
+import { useState } from 'react';
+import {
+  ArrowRight,
+  ArrowLeft,
+  Brain,
+  Database,
+  Flame,
+  Layers,
+  Target,
+  Activity,
+} from 'lucide-react';
 
-type Deck = {
-  _id: string;
-  name: string;
+const MOCK_DATA = {
+  cardsToReview: 468,
+  newCards: 15,
+  learningCards: 10,
+  relearningCards: 5,
+  streak: 12,
+  totalDecks: 8,
+  masteryRate: 85,
+  nextReviewIn: '15m',
 };
 
-type Card = {
-  _id: string;
-  front: string;
-  back: string;
+const MOCK_CARD = {
+  front: 'What is the primary function of Virtual Memory?',
+  back: 'It acts as an abstraction that maps virtual addresses to physical memory, giving each process the illusion of having its own contiguous address space.',
 };
 
-type DueCard = Card & {
-  dueAt: number;
-  phase: 'new' | 'learning' | 'review' | 'relearning';
-  reviewCount: number;
-};
+export default function App() {
+  const [mode, setMode] = useState<'dashboard' | 'study'>('dashboard');
+  const [isFlipped, setIsFlipped] = useState(false);
 
-type Rating = 'again' | 'hard' | 'good' | 'easy';
-
-const OWNER_ID = 'demo-user';
-const convexUrl = import.meta.env.VITE_CONVEX_URL;
-
-const ratingStyle: Record<Rating, string> = {
-  again: 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100',
-  hard: 'border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100',
-  good: 'border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100',
-  easy: 'border-sky-200 bg-sky-50 text-sky-800 hover:bg-sky-100',
-};
-
-function App() {
-  const [selectedDeckId, setSelectedDeckId] = useState<string | null>(null);
-  const [deckName, setDeckName] = useState('');
-  const [front, setFront] = useState('');
-  const [back, setBack] = useState('');
-  const [showBack, setShowBack] = useState(false);
-
-  const decks = useQuery(anyApi.flashcards.listDecks, { ownerId: OWNER_ID }) as Deck[] | undefined;
-  const cards = useQuery(
-    anyApi.flashcards.listCardsInDeck,
-    selectedDeckId ? { ownerId: OWNER_ID, deckId: selectedDeckId } : 'skip',
-  ) as Card[] | undefined;
-  const dueCards = useQuery(
-    anyApi.flashcards.listDueCards,
-    selectedDeckId ? { ownerId: OWNER_ID, deckId: selectedDeckId } : 'skip',
-  ) as DueCard[] | undefined;
-
-  const createDeck = useMutation(anyApi.flashcards.createDeck);
-  const createCard = useMutation(anyApi.flashcards.createCard);
-  const reviewCard = useMutation(anyApi.flashcards.reviewCard);
-
-  useEffect(() => {
-    if (!decks || decks.length === 0) {
-      setSelectedDeckId(null);
-      return;
-    }
-
-    const hasCurrentDeck = selectedDeckId && decks.some((deck) => deck._id === selectedDeckId);
-    if (!hasCurrentDeck) {
-      setSelectedDeckId(decks[0]!._id);
-    }
-  }, [decks, selectedDeckId]);
-
-  useEffect(() => {
-    setShowBack(false);
-  }, [selectedDeckId]);
-
-  const currentCard = dueCards?.[0] ?? null;
-  const deckCountLabel = useMemo(() => {
-    if (!decks) return 'Loading decks...';
-    return `${decks.length} deck${decks.length === 1 ? '' : 's'}`;
-  }, [decks]);
-
-  const handleCreateDeck = async (event: FormEvent) => {
-    event.preventDefault();
-    const normalizedName = deckName.trim();
-    if (!normalizedName) return;
-
-    await createDeck({ ownerId: OWNER_ID, name: normalizedName, parentId: null });
-    setDeckName('');
-  };
-
-  const handleCreateCard = async (event: FormEvent) => {
-    event.preventDefault();
-    if (!selectedDeckId) return;
-
-    const trimmedFront = front.trim();
-    const trimmedBack = back.trim();
-    if (!trimmedFront || !trimmedBack) return;
-
-    await createCard({
-      ownerId: OWNER_ID,
-      deckId: selectedDeckId,
-      front: trimmedFront,
-      back: trimmedBack,
-    });
-
-    setFront('');
-    setBack('');
-  };
-
-  const handleRate = async (rating: Rating) => {
-    if (!currentCard) return;
-    await reviewCard({ ownerId: OWNER_ID, cardId: currentCard._id, rating });
-    setShowBack(false);
-  };
-
-  return (
-    <main className="min-h-screen bg-gradient-to-br from-stone-100 via-amber-50 to-orange-100 px-4 py-8 text-stone-900 sm:px-8">
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
-        <header className="rounded-2xl border border-stone-200 bg-white/90 p-6 shadow-sm backdrop-blur">
-          <h1 className="text-3xl font-semibold tracking-tight">Flashcards</h1>
-          <p className="mt-2 text-sm text-stone-600">
-            Spaced repetition with front/back cards and FSRS ratings.
-          </p>
-          {!convexUrl ? (
-            <p className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-              Missing `VITE_CONVEX_URL`. Add it to run live Convex data.
-            </p>
-          ) : null}
-        </header>
-
-        <section className="grid gap-6 lg:grid-cols-[280px_1fr]">
-          <aside className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
-            <div className="mb-4">
-              <p className="text-sm font-medium text-stone-700">Decks</p>
-              <p className="text-xs text-stone-500">{deckCountLabel}</p>
-            </div>
-
-            <ul className="mb-5 space-y-2">
-              {decks?.map((deck) => (
-                <li key={deck._id}>
-                  <button
-                    onClick={() => setSelectedDeckId(deck._id)}
-                    className={`w-full cursor-pointer rounded-lg border px-3 py-2 text-left text-sm transition ${
-                      selectedDeckId === deck._id
-                        ? 'border-stone-700 bg-stone-900 text-stone-50'
-                        : 'border-stone-200 bg-stone-50 text-stone-700 hover:bg-stone-100'
-                    }`}
-                  >
-                    {deck.name}
-                  </button>
-                </li>
-              ))}
-            </ul>
-
-            <form onSubmit={handleCreateDeck} className="space-y-2 border-t border-stone-200 pt-4">
-              <label
-                htmlFor="deck-name"
-                className="block text-xs font-medium tracking-wide text-stone-500 uppercase"
-              >
-                New deck
-              </label>
-              <input
-                id="deck-name"
-                value={deckName}
-                onChange={(event) => setDeckName(event.target.value)}
-                placeholder="Linux Kernel"
-                className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm ring-stone-300 transition outline-none focus:ring-2"
-              />
+  if (mode === 'study') {
+    return (
+      <div className="relative min-h-screen w-full overflow-hidden bg-white font-sans text-black">
+        <div className="box-border h-screen p-2 sm:p-4">
+          <div className="flex h-full flex-col overflow-hidden border-[4px] border-black sm:border-[6px]">
+            {/* Header */}
+            <header className="flex shrink-0 items-center justify-between border-b-[4px] border-black bg-black px-3 py-2 text-white sm:border-b-[6px] sm:px-4 sm:py-3">
               <button
-                type="submit"
-                className="w-full cursor-pointer rounded-lg bg-stone-900 px-3 py-2 text-sm font-medium text-stone-50 transition hover:bg-stone-700"
+                onClick={() => {
+                  setMode('dashboard');
+                  setIsFlipped(false);
+                }}
+                className="flex cursor-pointer items-center gap-2 transition-colors hover:text-gray-300"
               >
-                Create deck
+                <ArrowLeft className="h-5 w-5" />
+                <span className="hidden text-xs font-bold tracking-widest uppercase sm:inline sm:text-sm">
+                  ABORT_SEQ
+                </span>
               </button>
-            </form>
-          </aside>
+              <span className="text-[10px] font-bold tracking-widest sm:text-xs">
+                SEQ: 001 / {MOCK_DATA.cardsToReview}
+              </span>
+            </header>
 
-          <div className="space-y-6">
-            <section className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
-              <h2 className="text-lg font-semibold">Cards</h2>
-              <p className="mt-1 text-sm text-stone-600">Author cards in Markdown on both sides.</p>
-
-              <form onSubmit={handleCreateCard} className="mt-4 grid gap-3 sm:grid-cols-2">
-                <label className="space-y-1">
-                  <span className="block text-xs font-medium tracking-wide text-stone-500 uppercase">
-                    Front
-                  </span>
-                  <textarea
-                    value={front}
-                    onChange={(event) => setFront(event.target.value)}
-                    rows={4}
-                    placeholder="What is virtual memory?"
-                    className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm ring-stone-300 transition outline-none focus:ring-2"
-                  />
-                </label>
-
-                <label className="space-y-1">
-                  <span className="block text-xs font-medium tracking-wide text-stone-500 uppercase">
-                    Back
-                  </span>
-                  <textarea
-                    value={back}
-                    onChange={(event) => setBack(event.target.value)}
-                    rows={4}
-                    placeholder="An abstraction that maps virtual addresses to physical memory."
-                    className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm ring-stone-300 transition outline-none focus:ring-2"
-                  />
-                </label>
-
-                <button
-                  type="submit"
-                  disabled={!selectedDeckId}
-                  className="cursor-pointer rounded-lg bg-amber-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-amber-500 disabled:cursor-not-allowed disabled:bg-stone-300 sm:col-span-2"
+            {/* Flashcard Area */}
+            <div className="flex flex-1 flex-col items-center justify-center bg-gray-100 p-4 sm:p-8">
+              <div
+                className="perspective-1000 h-80 w-full max-w-2xl cursor-pointer sm:h-96"
+                onClick={() => !isFlipped && setIsFlipped(true)}
+              >
+                <div
+                  className={`preserve-3d relative h-full w-full transition-transform duration-500 ${isFlipped ? 'rotate-y-180' : ''}`}
                 >
-                  Add card to deck
-                </button>
-              </form>
+                  {/* Front Face */}
+                  <div className="absolute inset-0 flex flex-col items-center justify-center border-[4px] border-black bg-white p-8 text-center shadow-[4px_4px_0_0_#000] backface-hidden sm:border-[6px] sm:shadow-[8px_8px_0_0_#000]">
+                    <span className="absolute top-4 left-4 text-xs font-bold tracking-widest text-gray-400 uppercase">
+                      FRONT
+                    </span>
+                    <h2 className="text-2xl font-black tracking-tighter uppercase sm:text-4xl">
+                      {MOCK_CARD.front}
+                    </h2>
+                  </div>
 
-              <p className="mt-4 text-sm text-stone-600">
-                {cards
-                  ? `${cards.length} card${cards.length === 1 ? '' : 's'} in selected deck.`
-                  : 'Loading cards...'}
-              </p>
-            </section>
-
-            <section className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <h2 className="text-lg font-semibold">Study</h2>
-                  <p className="text-sm text-stone-600">
-                    {dueCards
-                      ? `${dueCards.length} due card${dueCards.length === 1 ? '' : 's'} in this deck.`
-                      : 'Loading due cards...'}
-                  </p>
+                  {/* Back Face */}
+                  <div className="absolute inset-0 flex rotate-y-180 flex-col items-center justify-center border-[4px] border-black bg-[#EAEAEA] p-8 text-center shadow-[4px_4px_0_0_#000] backface-hidden sm:border-[6px] sm:shadow-[8px_8px_0_0_#000]">
+                    <span className="absolute top-4 left-4 text-xs font-bold tracking-widest text-gray-400 uppercase">
+                      BACK
+                    </span>
+                    <p className="text-xl font-bold uppercase sm:text-2xl">{MOCK_CARD.back}</p>
+                  </div>
                 </div>
               </div>
 
-              {currentCard ? (
-                <div className="mt-4 space-y-4">
-                  <article className="rounded-xl border border-stone-200 bg-stone-50 p-4">
-                    <p className="mb-2 text-xs font-medium tracking-wide text-stone-500 uppercase">
-                      Front
-                    </p>
-                    <div className="text-sm leading-6 whitespace-pre-wrap text-stone-800">
-                      {currentCard.front}
-                    </div>
-
-                    {showBack ? (
-                      <>
-                        <div className="my-4 border-t border-stone-200" />
-                        <p className="mb-2 text-xs font-medium tracking-wide text-stone-500 uppercase">
-                          Back
-                        </p>
-                        <div className="text-sm leading-6 whitespace-pre-wrap text-stone-800">
-                          {currentCard.back}
-                        </div>
-                        <p className="mt-3 text-xs text-stone-500">
-                          Phase: {currentCard.phase} | Reviews: {currentCard.reviewCount}
-                        </p>
-                      </>
-                    ) : null}
-                  </article>
-
-                  {!showBack ? (
+              {/* Controls */}
+              <div className="mt-8 h-20 w-full max-w-2xl sm:mt-12">
+                {!isFlipped ? (
+                  <button
+                    onClick={() => setIsFlipped(true)}
+                    className="h-full w-full cursor-pointer bg-black text-xl font-black tracking-widest text-white uppercase shadow-[4px_4px_0_0_#000] transition-all hover:bg-gray-800 active:translate-x-1 active:translate-y-1 active:shadow-none sm:text-2xl"
+                  >
+                    Reveal Data
+                  </button>
+                ) : (
+                  <div className="grid h-full grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-4">
                     <button
-                      onClick={() => setShowBack(true)}
-                      className="cursor-pointer rounded-lg bg-stone-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-stone-700"
+                      onClick={() => setIsFlipped(false)}
+                      className="cursor-pointer border-[3px] border-black bg-[#FF453A] font-black text-white uppercase shadow-[4px_4px_0_0_#000] transition-all hover:bg-red-600 active:translate-x-1 active:translate-y-1 active:shadow-none"
                     >
-                      Show answer
+                      Again
                     </button>
-                  ) : (
-                    <div className="grid gap-2 sm:grid-cols-4">
-                      {(['again', 'hard', 'good', 'easy'] as const).map((rating) => (
-                        <button
-                          key={rating}
-                          onClick={() => {
-                            void handleRate(rating);
-                          }}
-                          className={`cursor-pointer rounded-lg border px-3 py-2 text-sm font-medium capitalize transition ${ratingStyle[rating]}`}
-                        >
-                          {rating}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <p className="mt-4 rounded-lg border border-dashed border-stone-300 bg-stone-50 p-4 text-sm text-stone-600">
-                  No due cards. Add cards or switch deck.
-                </p>
-              )}
-            </section>
+                    <button
+                      onClick={() => setIsFlipped(false)}
+                      className="cursor-pointer border-[3px] border-black bg-[#FF9F0A] font-black text-black uppercase shadow-[4px_4px_0_0_#000] transition-all hover:bg-orange-500 active:translate-x-1 active:translate-y-1 active:shadow-none"
+                    >
+                      Hard
+                    </button>
+                    <button
+                      onClick={() => setIsFlipped(false)}
+                      className="cursor-pointer border-[3px] border-black bg-[#32D74B] font-black text-black uppercase shadow-[4px_4px_0_0_#000] transition-all hover:bg-green-500 active:translate-x-1 active:translate-y-1 active:shadow-none"
+                    >
+                      Good
+                    </button>
+                    <button
+                      onClick={() => setIsFlipped(false)}
+                      className="cursor-pointer border-[3px] border-black bg-[#0A84FF] font-black text-white uppercase shadow-[4px_4px_0_0_#000] transition-all hover:bg-blue-600 active:translate-x-1 active:translate-y-1 active:shadow-none"
+                    >
+                      Easy
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
-        </section>
+        </div>
       </div>
-    </main>
+    );
+  }
+
+  return (
+    <div className="relative min-h-screen w-full overflow-hidden bg-white font-sans text-black">
+      <div className="box-border h-screen p-2 sm:p-4">
+        <div className="flex h-full flex-col overflow-hidden border-[4px] border-black sm:border-[6px]">
+          {/* Top Bar */}
+          <header className="flex shrink-0 items-center justify-between bg-black px-3 py-2 text-white sm:px-4 sm:py-3">
+            <div className="flex items-center gap-3">
+              <Database className="h-4 w-4 sm:h-5 sm:w-5" />
+              <span className="text-xs font-bold tracking-widest uppercase sm:text-sm">
+                Itera_CMD_v2
+              </span>
+            </div>
+            <span className="text-[10px] font-bold tracking-widest sm:text-xs">
+              U: DEMO | SYS: ONLINE
+            </span>
+          </header>
+
+          {/* Main Grid Area */}
+          <main className="grid flex-1 grid-cols-1 grid-rows-[auto_1fr] overflow-y-auto md:grid-cols-12 md:grid-rows-1">
+            {/* Left Panel - Queue Info */}
+            <div className="flex flex-col border-b-[4px] border-black bg-gray-100 md:col-span-4 md:border-r-[6px] md:border-b-0">
+              <div className="flex flex-1 flex-col justify-center p-4 sm:p-6">
+                <h2 className="mb-2 text-xs font-bold tracking-widest text-gray-500 uppercase">
+                  Queue Status
+                </h2>
+                <div className="text-[clamp(4rem,10vw,8rem)] leading-none font-black tracking-tighter">
+                  {MOCK_DATA.cardsToReview}
+                </div>
+                <p className="mt-1 text-sm font-bold uppercase sm:text-base">Pending Reviews</p>
+
+                <div className="mt-8 space-y-2 border-l-4 border-black pl-3 text-xs font-bold tracking-widest sm:pl-4 sm:text-sm">
+                  <div className="flex justify-between">
+                    <span>NEW:</span> <span>{MOCK_DATA.newCards}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>LRN:</span> <span>{MOCK_DATA.learningCards}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>REL:</span> <span>{MOCK_DATA.relearningCards}</span>
+                  </div>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setMode('study')}
+                className="flex w-full shrink-0 cursor-pointer items-center justify-center gap-3 bg-black py-4 text-sm font-bold tracking-widest text-white uppercase transition-colors hover:bg-gray-800 sm:py-6 sm:text-lg"
+              >
+                Execute Queue <ArrowRight className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Right Panel - Grid Modules */}
+            <div className="grid grid-cols-2 grid-rows-2 bg-white md:col-span-8">
+              {/* Top Left - Streak */}
+              <div className="group flex cursor-pointer flex-col justify-between border-r-[4px] border-b-[4px] border-black p-4 transition-colors hover:bg-gray-100 sm:border-r-[6px] sm:border-b-[6px] sm:p-6">
+                <div className="flex items-start justify-between">
+                  <span className="text-[10px] font-bold tracking-widest text-gray-500 uppercase sm:text-xs">
+                    Consistency
+                  </span>
+                  <Flame className="h-5 w-5 sm:h-6 sm:w-6" />
+                </div>
+                <div>
+                  <div className="text-4xl font-black sm:text-6xl">{MOCK_DATA.streak}</div>
+                  <span className="text-xs font-bold tracking-widest uppercase sm:text-sm">
+                    Day Streak
+                  </span>
+                </div>
+              </div>
+
+              {/* Top Right - Mastery */}
+              <div className="group flex cursor-pointer flex-col justify-between border-b-[4px] border-black bg-black p-4 text-white transition-colors hover:bg-gray-100 hover:text-black sm:border-b-[6px] sm:p-6">
+                <div className="flex items-start justify-between">
+                  <span className="text-[10px] font-bold tracking-widest text-gray-400 uppercase group-hover:text-gray-600 sm:text-xs">
+                    Mastery Index
+                  </span>
+                  <Activity className="h-5 w-5 sm:h-6 sm:w-6" />
+                </div>
+                <div>
+                  <div className="text-4xl font-black sm:text-6xl">{MOCK_DATA.masteryRate}%</div>
+                  <span className="text-xs font-bold tracking-widest uppercase sm:text-sm">
+                    Global Rate
+                  </span>
+                </div>
+              </div>
+
+              {/* Bottom Left - Database */}
+              <div className="group flex cursor-pointer flex-col justify-between border-r-[4px] border-black p-4 transition-colors hover:bg-gray-100 sm:border-r-[6px] sm:p-6">
+                <div className="flex items-start justify-between">
+                  <span className="text-[10px] font-bold tracking-widest text-gray-500 uppercase sm:text-xs">
+                    Directory
+                  </span>
+                  <Layers className="h-5 w-5 sm:h-6 sm:w-6" />
+                </div>
+                <div>
+                  <div className="text-4xl font-black sm:text-6xl">{MOCK_DATA.totalDecks}</div>
+                  <span className="text-xs font-bold tracking-widest uppercase sm:text-sm">
+                    Active Decks
+                  </span>
+                </div>
+              </div>
+
+              {/* Bottom Right - Socratic */}
+              <div className="group relative flex cursor-pointer flex-col justify-between overflow-hidden p-4 transition-colors hover:bg-gray-100 sm:p-6">
+                <Brain className="absolute -right-4 -bottom-4 h-32 w-32 opacity-10 transition-opacity group-hover:opacity-20" />
+                <div className="relative z-10 flex items-start justify-between">
+                  <span className="text-[10px] font-bold tracking-widest text-gray-500 uppercase sm:text-xs">
+                    Interrogation
+                  </span>
+                  <Target className="h-5 w-5 sm:h-6 sm:w-6" />
+                </div>
+                <div className="relative z-10">
+                  <span className="block text-lg leading-tight font-bold tracking-widest uppercase sm:text-2xl">
+                    Socratic
+                    <br />
+                    Mode
+                  </span>
+                </div>
+              </div>
+            </div>
+          </main>
+        </div>
+      </div>
+    </div>
   );
 }
-
-export default App;
